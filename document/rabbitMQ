@@ -1,0 +1,67 @@
+一、RabbitMQ 一般工作流程：
+生产者和RabbitMQ服务器建立连接和通道，声明路由器，同时为消息设置路由键，这样，所有的消息就会以特定的路由键发给路由器，
+具体路由器会发送到哪个或哪几个队列，生产者在大部分场景中都不知道。（1个路由器，但不同的消息可以有不同的路由键）。
+
+消费者和RabbitMQ服务器建立连接和通道，然后声明队列，声明路由器，然后通过设置绑定键（或叫路由键）为队列和路由器指定绑定关系，
+这样，消费者就可以根据绑定键的设置来接收消息。（1个路由器，1个队列，但不同的消费者可以设置不同的绑定关系）。
+
+二、主要方法
+1、声明队列（创建队列）
+可以生产者和消费者都声明，也可以消费者声明生产者不声明，也可以生产者声明而消费者不声明。最好是都声明。
+（生产者未声明，消费者声明这种情况如果生产者先启动，会出现消息丢失的情况，因为队列未创建）
+channel.queueDeclare(String queue, //队列的名字
+                     boolean durable, //该队列是否持久化（即是否保存到磁盘中）
+                     boolean exclusive,//该队列是否为该通道独占的，即其他通道是否可以消费该队列
+                     boolean autoDelete,//该队列不再使用的时候，是否让RabbitMQ服务器自动删除掉
+                     Map<String, Object> arguments)//其他参数
+
+channel.queueDeclare() //一个非持久、独特的、自动删除的队列，并返回一个自动生成的名字。
+2、声明路由器（创建路由器）
+生产者、消费者都要声明路由器---如果声明了队列，可以不声明路由器。
+channel.exchangeDeclare(String exchange,//路由器的名字
+                        String type,//路由器的类型：topic、direct、fanout、header
+                        boolean durable,//是否持久化该路由器
+                        boolean autoDelete,//是否自动删除该路由器
+                        boolean internal,//是否是内部使用的，true的话客户端不能使用该路由器
+                        Map<String, Object> arguments) //其他参数
+
+channel.exchangeDeclare(String exchange,//路由器的名字
+                        String type)//路由器的类型：topic、direct、fanout、header
+3、绑定队列和路由器---只用在消费者
+channel.queueBind(String queue, //队列
+                  String exchange, //路由器
+                  String routingKey, //路由键，即绑定键
+                  Map<String, Object> arguments) //其他绑定参数
+
+4、发布消息---只用在生产者
+channel.basicPublish(String exchange, //路由器的名字，即将消息发到哪个路由器
+                     String routingKey, //路由键，即发布消息时，该消息的路由键是什么
+                     BasicProperties props, //指定消息的基本属性
+                     byte[] body)//消息体，也就是消息的内容，是字节数组
+
+5、接收消息---只用在消费者
+channel.basicConsume(String queue, //队列名字，即要从哪个队列中接收消息
+                    boolean autoAck, //是否自动确认，默认true
+                    Consumer callback)//消费者，即谁接收消息
+消费者中一般会有回调方法来消费消息
+Consumer consumer = new DefaultConsumer(channel) {
+        @Override
+        public void handleDelivery(String consumerTag, //该消费者的标签
+                                   Envelope envelope,//字面意思为信封：packaging data for the message
+                                   AMQP.BasicProperties properties, //message content header data
+                                   byte[] body) //message body
+                                   throws IOException {
+                //获取消息示例
+                String message = new String(body, "UTF-8");
+                //接下来就可以根据消息处理一些事情
+        }
+    };
+
+三、路由类型
+1、fanout：会忽视绑定键，每个消费者都可以接受到所有的消息（前提是每个消费者都要有各自单独的队列，而不是共有同一队列）。
+2、direct：只有绑定键和路由键完全匹配时，才可以接受到消息。
+3、topic：可以设置多个关键词作为路由键，在绑定键中可以使用*和#来匹配
+4、headers：（可以忽视它的存在）
+
+
+
